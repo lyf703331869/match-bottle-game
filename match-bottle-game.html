@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matching Bottle Colors</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      text-align: center;
+      background: linear-gradient(to bottom, #fdfdfd, #e6e6e6);
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 10px 0 5px;
+      color: #333;
+    }
+
+    #best-score {
+      font-size: 16px;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    #game {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin: 20px auto;
+      max-width: 90vw;
+    }
+
+    .bottle {
+      width: 70px;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: grab;
+      user-select: none;
+      background: linear-gradient(to bottom, #fff, #ccc);
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+    }
+
+    .bottle:active {
+      transform: scale(0.95);
+    }
+
+    .neck {
+      width: 20px;
+      height: 25px;
+      background-color: #444;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+
+    .body {
+      width: 80%;
+      height: 100px;
+      margin-top: 8px;
+      border-radius: 10px;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+      border: 1.5px solid #555;
+    }
+
+    .button-group {
+      margin: 20px 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      background: linear-gradient(to bottom, #007aff, #0051a8);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: 500;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:hover {
+      background: linear-gradient(to bottom, #3399ff, #0066cc);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    #message {
+      margin-top: 15px;
+      font-size: 18px;
+      color: #333;
+    }
+
+    #steps, #answer-display {
+      margin-top: 8px;
+      font-size: 15px;
+      color: #666;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 22px;
+      }
+
+      .bottle {
+        width: 50px;
+        height: 120px;
+      }
+
+      .body {
+        height: 80px;
+      }
+
+      .neck {
+        height: 20px;
+      }
+
+      button {
+        font-size: 14px;
+        padding: 8px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Matching Bottle Colors</h1>
+  <div id="best-score">Best Score (Easy): N/A</div>
+
+  <div class="button-group">
+    <button onclick="setMode(5)">Easy</button>
+    <button onclick="setMode(7)">Normal</button>
+    <button onclick="setMode(9)">Hard</button>
+  </div>
+
+  <div id="game"></div>
+
+  <div class="button-group">
+    <button onclick="checkAnswer()">Check Answer</button>
+    <button onclick="resetGame()">Reset Game</button>
+    <button id="show-answer-btn"
+      onmousedown="showAnswerOnce(true)"
+      onmouseup="showAnswerOnce(false)"
+      onmouseleave="showAnswerOnce(false)"
+      ontouchstart="showAnswerOnce(true)"
+      ontouchend="showAnswerOnce(false)">Show Answer</button>
+    <button onclick="clearBestScores()">Clear Best Scores</button>
+  </div>
+
+  <div id="message"></div>
+  <div id="steps">Steps: 0</div>
+  <div id="answer-display"></div>
+
+  <script>
+    const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan", "lime"];
+    let totalBottles = 5;
+    let bottles = [];
+    let answer = [];
+    let steps = 0;
+    let gameOver = false;
+    let currentMode = "Easy";
+    let showAnswerEnabled = false;
+    let bestScores = loadBestScores();
+
+    function shuffle(array) {
+      return [...array].sort(() => Math.random() - 0.5);
+    }
+
+    function countCorrect(arr1, arr2) {
+      let count = 0;
+      for (let i = 0; i < arr1.length; i++) {
+        if (arr1[i] === arr2[i]) count++;
+      }
+      return count;
+    }
+
+    function loadBestScores() {
+      const saved = localStorage.getItem("bottleGameBestScores");
+      return saved ? JSON.parse(saved) : { Easy: null, Normal: null, Hard: null };
+    }
+
+    function saveBestScores() {
+      localStorage.setItem("bottleGameBestScores", JSON.stringify(bestScores));
+    }
+
+    function updateBestScoreDisplay() {
+      const score = bestScores[currentMode];
+      document.getElementById("best-score").innerText =
+        `Best Score (${currentMode}): ${score === null ? "N/A" : score}`;
+    }
+
+    function renderBottles() {
+      const gameDiv = document.getElementById("game");
+      gameDiv.innerHTML = "";
+      bottles.forEach((color, i) => {
+        const bottleDiv = document.createElement("div");
+        bottleDiv.className = "bottle";
+        bottleDiv.draggable = true;
+        bottleDiv.dataset.index = i;
+        bottleDiv.ondragstart = dragStart;
+        bottleDiv.ondragover = dragOver;
+        bottleDiv.ondrop = drop;
+
+        const neck = document.createElement("div");
+        neck.className = "neck";
+
+        const body = document.createElement("div");
+        body.className = "body";
+        body.style.backgroundColor = color;
+
+        bottleDiv.appendChild(neck);
+        bottleDiv.appendChild(body);
+        gameDiv.appendChild(bottleDiv);
+      });
+
+      const answerDiv = document.getElementById("answer-display");
+      if (showAnswerEnabled) {
+        answerDiv.innerHTML = `<strong>Answer:</strong> ${answer.map(c => `<span style="color:${c}; font-weight:bold">${c}</span>`).join(", ")}`;
+      } else {
+        answerDiv.innerHTML = "";
+      }
+    }
+
+    function dragStart(e) {
+      e.dataTransfer.setData("text/plain", e.target.closest(".bottle").dataset.index);
+    }
+
+    function dragOver(e) {
+      e.preventDefault();
+    }
+
+    function drop(e) {
+      const fromIndex = e.dataTransfer.getData("text/plain");
+      const toIndex = e.target.closest(".bottle").dataset.index;
+      if (fromIndex !== toIndex) {
+        [bottles[fromIndex], bottles[toIndex]] = [bottles[toIndex], bottles[fromIndex]];
+        renderBottles();
+      }
+    }
+
+    function checkAnswer() {
+      if (gameOver) return;
+      steps++;
+      document.getElementById("steps").innerText = `Steps: ${steps}`;
+
+      const correct = countCorrect(bottles, answer);
+      const messageDiv = document.getElementById("message");
+
+      if (correct === bottles.length) {
+        messageDiv.innerText = `🎉 Perfect! All bottles matched in ${steps} steps!`;
+
+        if (bestScores[currentMode] === null || steps < bestScores[currentMode]) {
+          bestScores[currentMode] = steps;
+          saveBestScores();
+          updateBestScoreDisplay();
+        }
+        gameOver = true;
+      } else {
+        messageDiv.innerText = `${correct} bottle(s) are in the correct position.`;
+      }
+    }
+
+    function resetGame() {
+      const selectedColors = colorPalette.slice(0, totalBottles);
+      answer = shuffle(selectedColors);
+
+      let maxCorrectAllowed = 2;
+      if (totalBottles === 7) maxCorrectAllowed = 3;
+      if (totalBottles === 9) maxCorrectAllowed = 4;
+
+      let shuffled;
+      do {
+        shuffled = shuffle(selectedColors);
+      } while (countCorrect(shuffled, answer) > maxCorrectAllowed);
+
+      bottles = shuffled;
+      steps = 0;
+      gameOver = false;
+      document.getElementById("steps").innerText = `Steps: 0`;
+      document.getElementById("message").innerText = "";
+      renderBottles();
+      updateBestScoreDisplay();
+    }
+
+    function setMode(num) {
+      totalBottles = num;
+      currentMode = num === 5 ? "Easy" : num === 7 ? "Normal" : "Hard";
+      resetGame();
+    }
+
+    function showAnswerOnce(show) {
+      showAnswerEnabled = show;
+      renderBottles();
+    }
+
+    function clearBestScores() {
+      localStorage.removeItem("bottleGameBestScores");
+      bestScores = { Easy: null, Normal: null, Hard: null };
+      updateBestScoreDisplay();
+      alert("Best scores have been cleared.");
+    }
+
+    setMode(5);
+  </script>
+</body>
+</html>
