@@ -4,11 +4,16 @@
   <meta charset="UTF-8">
   <title>Matching Bottle Colors</title>
   <style>
-    body {
+    html, body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      background: linear-gradient(to bottom, #fdfdfd, #e6e6e6);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       text-align: center;
-      background: linear-gradient(to bottom, #fdfdfd, #e6e6e6);
-      margin: 0;
       padding: 20px;
     }
 
@@ -164,24 +169,17 @@
   <script>
     const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan", "lime"];
     let totalBottles = 5;
-    let bottles = [];
-    let answer = [];
-    let steps = 0;
-    let gameOver = false;
-    let currentMode = "Easy";
-    let showAnswerEnabled = false;
+    let bottles = [], answer = [], steps = 0;
+    let gameOver = false, currentMode = "Easy", showAnswerEnabled = false;
     let bestScores = loadBestScores();
+    let touchStartIndex = null;
 
     function shuffle(array) {
       return [...array].sort(() => Math.random() - 0.5);
     }
 
     function countCorrect(arr1, arr2) {
-      let count = 0;
-      for (let i = 0; i < arr1.length; i++) {
-        if (arr1[i] === arr2[i]) count++;
-      }
-      return count;
+      return arr1.filter((val, i) => val === arr2[i]).length;
     }
 
     function loadBestScores() {
@@ -205,40 +203,42 @@
       bottles.forEach((color, i) => {
         const bottleDiv = document.createElement("div");
         bottleDiv.className = "bottle";
-        bottleDiv.draggable = true;
         bottleDiv.dataset.index = i;
+
+        bottleDiv.draggable = true;
         bottleDiv.ondragstart = dragStart;
         bottleDiv.ondragover = dragOver;
         bottleDiv.ondrop = drop;
 
+        bottleDiv.ontouchstart = e => { touchStartIndex = i; };
+        bottleDiv.ontouchend = e => {
+          const touch = e.changedTouches[0];
+          const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+          const toIndex = elem?.closest(".bottle")?.dataset.index;
+          if (toIndex && touchStartIndex !== toIndex) {
+            [bottles[touchStartIndex], bottles[toIndex]] = [bottles[toIndex], bottles[touchStartIndex]];
+            renderBottles();
+          }
+        };
+
         const neck = document.createElement("div");
         neck.className = "neck";
-
         const body = document.createElement("div");
         body.className = "body";
         body.style.backgroundColor = color;
 
-        bottleDiv.appendChild(neck);
-        bottleDiv.appendChild(body);
+        bottleDiv.append(neck, body);
         gameDiv.appendChild(bottleDiv);
       });
-
-      const answerDiv = document.getElementById("answer-display");
-      if (showAnswerEnabled) {
-        answerDiv.innerHTML = `<strong>Answer:</strong> ${answer.map(c => `<span style="color:${c}; font-weight:bold">${c}</span>`).join(", ")}`;
-      } else {
-        answerDiv.innerHTML = "";
-      }
+      document.getElementById("answer-display").innerHTML = showAnswerEnabled
+        ? `<strong>Answer:</strong> ${answer.map(c => `<span style='color:${c}'>${c}</span>`).join(", ")}`
+        : "";
     }
 
     function dragStart(e) {
       e.dataTransfer.setData("text/plain", e.target.closest(".bottle").dataset.index);
     }
-
-    function dragOver(e) {
-      e.preventDefault();
-    }
-
+    function dragOver(e) { e.preventDefault(); }
     function drop(e) {
       const fromIndex = e.dataTransfer.getData("text/plain");
       const toIndex = e.target.closest(".bottle").dataset.index;
@@ -252,49 +252,38 @@
       if (gameOver) return;
       steps++;
       document.getElementById("steps").innerText = `Steps: ${steps}`;
-
       const correct = countCorrect(bottles, answer);
-      const messageDiv = document.getElementById("message");
+      document.getElementById("message").innerText =
+        correct === bottles.length
+          ? `🎉 Perfect! All bottles matched in ${steps} steps!`
+          : `${correct} bottle(s) are in the correct position.`;
 
       if (correct === bottles.length) {
-        messageDiv.innerText = `🎉 Perfect! All bottles matched in ${steps} steps!`;
-
-        if (bestScores[currentMode] === null || steps < bestScores[currentMode]) {
+        if (!bestScores[currentMode] || steps < bestScores[currentMode]) {
           bestScores[currentMode] = steps;
           saveBestScores();
           updateBestScoreDisplay();
         }
         gameOver = true;
-      } else {
-        messageDiv.innerText = `${correct} bottle(s) are in the correct position.`;
       }
     }
 
     function resetGame() {
       const selectedColors = colorPalette.slice(0, totalBottles);
       answer = shuffle(selectedColors);
-
-      let maxCorrectAllowed = 2;
-      if (totalBottles === 7) maxCorrectAllowed = 3;
-      if (totalBottles === 9) maxCorrectAllowed = 4;
-
-      let shuffled;
-      do {
-        shuffled = shuffle(selectedColors);
-      } while (countCorrect(shuffled, answer) > maxCorrectAllowed);
-
-      bottles = shuffled;
+      let maxCorrect = totalBottles === 5 ? 2 : totalBottles === 7 ? 3 : 4;
+      do { bottles = shuffle(selectedColors); } while (countCorrect(bottles, answer) > maxCorrect);
       steps = 0;
       gameOver = false;
-      document.getElementById("steps").innerText = `Steps: 0`;
+      document.getElementById("steps").innerText = "Steps: 0";
       document.getElementById("message").innerText = "";
-      renderBottles();
       updateBestScoreDisplay();
+      renderBottles();
     }
 
-    function setMode(num) {
-      totalBottles = num;
-      currentMode = num === 5 ? "Easy" : num === 7 ? "Normal" : "Hard";
+    function setMode(n) {
+      totalBottles = n;
+      currentMode = n === 5 ? "Easy" : n === 7 ? "Normal" : "Hard";
       resetGame();
     }
 
