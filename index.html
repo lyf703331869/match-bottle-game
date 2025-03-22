@@ -101,6 +101,11 @@
       transform: scale(0.97);
     }
 
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
     #message {
       margin-top: 15px;
       font-size: 18px;
@@ -152,13 +157,13 @@
 
   <div class="button-group">
     <button onclick="checkAnswer()">Check Answer</button>
-    <button onclick="resetGame()">Reset Game</button>
     <button id="show-answer-btn"
       onmousedown="showAnswerOnce(true)"
       onmouseup="showAnswerOnce(false)"
       onmouseleave="showAnswerOnce(false)"
       ontouchstart="showAnswerOnce(true)"
-      ontouchend="showAnswerOnce(false)">Show Answer</button>
+      ontouchend="showAnswerOnce(false)"
+      disabled>Show Answer</button>
     <button onclick="clearBestScores()">Clear Best Scores</button>
   </div>
 
@@ -195,6 +200,12 @@
       const score = bestScores[currentMode];
       document.getElementById("best-score").innerText =
         `Best Score (${currentMode}): ${score === null ? "N/A" : score}`;
+    }
+
+    function updateShowAnswerButton() {
+      const score = bestScores[currentMode];
+      const showAnswerBtn = document.getElementById("show-answer-btn");
+      showAnswerBtn.disabled = !(score !== null && steps > score);
     }
 
     function renderBottles() {
@@ -252,6 +263,7 @@
       if (gameOver) return;
       steps++;
       document.getElementById("steps").innerText = `Steps: ${steps}`;
+      updateShowAnswerButton();
       const correct = countCorrect(bottles, answer);
       document.getElementById("message").innerText =
         correct === bottles.length
@@ -275,9 +287,11 @@
       do { bottles = shuffle(selectedColors); } while (countCorrect(bottles, answer) > maxCorrect);
       steps = 0;
       gameOver = false;
+      showAnswerEnabled = false;
       document.getElementById("steps").innerText = "Steps: 0";
       document.getElementById("message").innerText = "";
       updateBestScoreDisplay();
+      updateShowAnswerButton();
       renderBottles();
     }
 
@@ -288,6 +302,7 @@
     }
 
     function showAnswerOnce(show) {
+      if (document.getElementById("show-answer-btn").disabled) return;
       showAnswerEnabled = show;
       renderBottles();
     }
@@ -296,6 +311,7 @@
       localStorage.removeItem("bottleGameBestScores");
       bestScores = { Easy: null, Normal: null, Hard: null };
       updateBestScoreDisplay();
+      updateShowAnswerButton();
       alert("Best scores have been cleared.");
     }
 
